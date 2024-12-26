@@ -18,10 +18,12 @@ KittiPublishersNode::KittiPublishersNode()
   publisher_image_color_right_ = this->create_publisher<sensor_msgs::msg::Image>("kitti/image/color/right", 10);
   publisher_imu_ = this->create_publisher<sensor_msgs::msg::Imu>("kitti/imu", 10);
   publisher_nav_sat_fix_= this->create_publisher<sensor_msgs::msg::NavSatFix>("kitti/nav_sat_fix", 10);
+  publisher_odom_ = this->create_publisher<nav_msgs::msg::Odometry>("kitti/odom", 10);
   publisher_marker_array_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("kitti/marker_array", 10);
+  tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
   init_file_path();
-
+  
   create_publishers_data_file_names();
 
   timer_ = create_wall_timer(
@@ -57,7 +59,7 @@ void KittiPublishersNode::on_timer_callback()
     std::string oxts_file_name = path_oxts_ + file_names_oxts_[file_index_];
     const std::string delimiter = " ";
     std::vector<std::string> oxts_parsed_array = parse_file_data_into_string_array(oxts_file_name, delimiter);
-    RCLCPP_INFO(this->get_logger(), "OxTs size: '%i'", oxts_parsed_array.size());
+    // RCLCPP_INFO(this->get_logger(), "OxTs size: '%i'", oxts_parsed_array.size());
 
     auto nav_sat_fix_msg = std::make_unique<sensor_msgs::msg::NavSatFix>();
     prepare_navsatfix_msg(oxts_parsed_array , *nav_sat_fix_msg);
@@ -65,8 +67,12 @@ void KittiPublishersNode::on_timer_callback()
     auto imu_msg = std::make_unique<sensor_msgs::msg::Imu>();
     prepare_imu_msg(oxts_parsed_array , *imu_msg);
 
+    auto odom_msg = std::make_unique<nav_msgs::msg::Odometry>();
+    auto tf_msg = std::make_unique<geometry_msgs::msg::TransformStamped>();
+    prepare_odom_msg(oxts_parsed_array , *odom_msg, *tf_msg);
+
     auto marker_array_msg = std::make_unique<visualization_msgs::msg::MarkerArray>();
-    prepare_marker_array_msg(oxts_parsed_array , *marker_array_msg);
+    prepare_marker_array_msg(oxts_parsed_array , *marker_array_msg );
     // 03- KITTI OXTS to IMU, NAV & MARKERARRAY MESSAGE END//
 
     publisher_point_cloud_->publish(point_cloud2_msg);
@@ -77,6 +83,8 @@ void KittiPublishersNode::on_timer_callback()
 
     publisher_imu_->publish(std::move(imu_msg));
     publisher_nav_sat_fix_->publish(std::move(nav_sat_fix_msg));
+    publisher_odom_->publish(std::move(odom_msg));
+    tf_broadcaster_->sendTransform(*tf_msg);
     publisher_marker_array_->publish(std::move(marker_array_msg));
 
     file_index_++;
@@ -88,7 +96,7 @@ void KittiPublishersNode::convert_pcl_to_pointcloud2(sensor_msgs::msg::PointClou
     std::string filePath = get_path(KittiPublishersNode::PublisherType::POINT_CLOUD) + file_names_point_cloud_[file_index_];
     std::fstream input(filePath, std::ios::in | std::ios::binary);
     if(!input.good()){
-      RCLCPP_INFO(this->get_logger(), "Could not read Velodyne's point cloud. Check your file path!");
+      // RCLCPP_INFO(this->get_logger(), "Could not read Velodyne's point cloud. Check your file path!");
       exit(EXIT_FAILURE);
     }
     input.seekg(0, std::ios::beg);
@@ -117,7 +125,7 @@ void KittiPublishersNode::init_file_path()
 
 std::string KittiPublishersNode::get_path(KittiPublishersNode::PublisherType publisher_type)
 {
-  RCLCPP_INFO(this->get_logger(), "get_path: '%i'", publisher_type);
+  // RCLCPP_INFO(this->get_logger(), "get_path: '%i'", publisher_type);
   std::string path;
   if (publisher_type == KittiPublishersNode::PublisherType::POINT_CLOUD){
     path = path_point_cloud_;
@@ -198,7 +206,9 @@ void KittiPublishersNode::create_publishers_data_file_names()
 
 
 void KittiPublishersNode::prepare_navsatfix_msg(std::vector<std::string> &oxts_tokenized_array, sensor_msgs::msg::NavSatFix &msg)
+
 {
+  // RCLCPP_INFO(this->get_logger(),"navsat process");
   msg.header.frame_id = "base_link";
   msg.header.stamp = this->now();
 
@@ -219,6 +229,72 @@ void KittiPublishersNode::prepare_navsatfix_msg(std::vector<std::string> &oxts_t
   msg.position_covariance[6] = 0.0f;
   msg.position_covariance[7] = 0.0f;
   msg.position_covariance[8] = std::atof(oxts_tokenized_array[23].c_str());
+}
+
+void KittiPublishersNode::prepare_odom_msg(std::vector<std::string> &oxts_tokenized_array, nav_msgs::msg::Odometry &msg , geometry_msgs::msg::TransformStamped &tf_msg)
+{
+
+  // RCLCPP_INFO(this->get_logger(),"odom process");
+  const double lat =  std::stod(oxts_tokenized_array[0]);
+  const double lon =  std::stod(oxts_tokenized_array[1]);
+  
+  std::array<double, 2> WGS84Reference{lat, lon};
+  std::array<double, 2> WGS84Position{lat, lon};
+  std::array<double, 2> result{wgs84::toCartesian(WGS84Reference, WGS84Position)};
+
+  // log file 
+
+  RCLCPP_INFO(this->get_logger(), " result : '%f'", result);
+  
+
+  msg.header.frame_id = "odom_frame";
+  msg.header.stamp = this->now();
+
+  msg.pose.pose.position.x = result[0];
+  msg.pose.pose.position.y = result[1];
+  msg.pose.pose.position.z = 0;
+
+  
+  tf2::Quaternion q;
+  q.setRPY(std::atof(oxts_tokenized_array[3].c_str()), 
+            std::atof(oxts_tokenized_array[4].c_str()), 
+            std::atof(oxts_tokenized_array[5].c_str()));
+
+  msg.pose.pose.orientation.x = q.getX();
+  msg.pose.pose.orientation.y = q.getY();
+  msg.pose.pose.orientation.z = q.getZ();
+  msg.pose.pose.orientation.w = q.getW();
+
+
+  msg.twist.twist.linear.x = std::atof(oxts_tokenized_array[8].c_str());
+  msg.twist.twist.linear.y = std::atof(oxts_tokenized_array[9].c_str());
+  msg.twist.twist.linear.z = std::atof(oxts_tokenized_array[10].c_str());
+
+
+  msg.twist.twist.angular.x = std::atof(oxts_tokenized_array[14].c_str());
+  msg.twist.twist.angular.y = std::atof(oxts_tokenized_array[15].c_str());
+  msg.twist.twist.angular.z = std::atof(oxts_tokenized_array[16].c_str());
+  
+  msg.child_frame_id = "base_link";
+
+  
+
+  // publish tf odom to base_link
+
+ 
+ 
+  tf_msg.header.stamp = this->now();
+  tf_msg.header.frame_id = "odom_frame";
+  tf_msg.child_frame_id = "base_link";
+  tf_msg.transform.translation.x = result[0];
+  tf_msg.transform.translation.y = result[1];
+  tf_msg.transform.translation.z = 0;
+  tf_msg.transform.rotation.x = q.getX();
+  tf_msg.transform.rotation.y = q.getY();
+  tf_msg.transform.rotation.z = q.getZ();
+  tf_msg.transform.rotation.w = q.getW();
+
+ 
 }
 
 // https://github.com/iralabdisco/kitti_player/blob/public/src/kitti_player.cpp#L1252
@@ -334,7 +410,7 @@ std::vector<std::string> KittiPublishersNode::parse_file_data_into_string_array(
     std::ifstream f(file_name.c_str()); //taking file as inputstream
 
     if(!f.good()){
-      RCLCPP_INFO(this->get_logger(), "Could not read OXTS data. Check your file path!");
+      // RCLCPP_INFO(this->get_logger(), "Could not read OXTS data. Check your file path!");
       exit(EXIT_FAILURE);
     }
 

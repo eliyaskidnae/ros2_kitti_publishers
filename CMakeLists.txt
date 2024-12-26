@@ -19,6 +19,7 @@ find_package(ament_index_cpp REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(class_loader REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(shape_msgs REQUIRED)
@@ -50,6 +51,7 @@ endif()
 set(dependencies
     OpenCV
     geometry_msgs
+    nav_msgs
     visualization_msgs
     pcl_conversions
     rcl_interfaces

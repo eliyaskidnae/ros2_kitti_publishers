@@ -33,7 +33,8 @@
 #include <visualization_msgs/msg/marker.hpp>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <sensor_msgs/msg/imu.hpp>
-
+// odmomsgs
+#include <nav_msgs/msg/odometry.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui_c.h>
 
@@ -77,7 +78,9 @@ private:
 
   void prepare_navsatfix_msg(std::vector<std::string> &oxts_tokenized_array, sensor_msgs::msg::NavSatFix &msg);
   void prepare_imu_msg(std::vector<std::string> &oxts_tokenized_array, sensor_msgs::msg::Imu &msg);
+  void prepare_odom_msg(std::vector<std::string> &oxts_tokenized_array, nav_msgs::msg::Odometry &msg , geometry_msgs::msg::TransformStamped &tf_msg);
   void prepare_marker_array_msg(std::vector<std::string> &oxts_tokenized_array, visualization_msgs::msg::MarkerArray &msg);
+  
   void convert_pcl_to_pointcloud2(sensor_msgs::msg::PointCloud2 & msg );
   
   size_t file_index_;
@@ -92,8 +95,13 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher_odometry_;            // oxts odometry publisher
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr publisher_imu_;                    // oxts odometry publisher
   rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr publisher_nav_sat_fix_;      // oxts odometry publisher
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr publisher_odom_;                 // oxts odometry publisher
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_marker_array_;  // oxts odometry publisher
 
+  // tranasform broadcaster variable 
+  std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+
+  
   std::vector<std::string> file_names_point_cloud_;
   std::vector<std::string> file_names_image_gray_left_;
   std::vector<std::string> file_names_image_gray_right_;
@@ -107,6 +115,9 @@ private:
   std::string path_image_color_left_;
   std::string path_image_color_right_;
   std::string path_oxts_;
+
+
+
 };
 
 #endif  // ROS2_KITTI_PUBLISHERS__KITTI_PUBLISHERS_NODE_HPP_

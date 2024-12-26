@@ -1,0 +1,21 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/elias/ros2_ws/install/robot_controller/lib/python3.10/site-packages",
+        "/home/elias/ros2_ws/install/python_pkg/lib/python3.10/site-packages",
+        "/home/elias/catkin_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/home/elias/catkin_ws/src",
+        "/home/elias/catkin_ws/devel/lib/python3.x/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/elias/ros2_ws/install/robot_controller/lib/python3.10/site-packages",
+        "/home/elias/ros2_ws/install/python_pkg/lib/python3.10/site-packages",
+        "/home/elias/catkin_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/home/elias/catkin_ws/src",
+        "/home/elias/catkin_ws/devel/lib/python3.x/site-packages"
+    ],
+    "files.associations": {
+        "functional": "cpp"
+    }
+}
